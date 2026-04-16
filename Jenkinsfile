@@ -38,7 +38,7 @@ pipeline {
         stage ('clean-up') {
             steps {
               cleanWs()
-             }
+            }
         }
         post {
             success {
