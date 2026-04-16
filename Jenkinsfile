@@ -1,56 +1,71 @@
 pipeline {
     agent any 
+
     environment {
         IMAGE="docker.io/trinathr/trinathr-flask"
         TAG="${BUILD_NUMBER}"
     }
+
     stages {
+
         stage ('build') {
             steps {
                 sh 'docker build -t "$IMAGE:$TAG" -t "$IMAGE:latest" .'
             }
         }
+
         stage ('push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker-auth', passwordVariable: 'DOCKERHUB_PWD', usernameVariable: 'DOCKERHUB_USER')]) {
-                sh 'echo "$DOCKERHUB_PWD" | docker login -u "$DOCKERHUB_USER" --password-stdin'
-                sh 'docker push "$IMAGE:$TAG"'
-                sh 'docker push "$IMAGE:latest"'
-                sh '''
-                cat > deploy-info-$BUILD_NUMBER.txt <<EOF
-                    build: $BUILD_NUMBER
-                    image: $IMAGE:$TAG
-                    commit: ${GIT_COMMIT}
-                    branch: $GIT_BRANCH
-                    time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
-                    url: $BUILD_URL
-                    EOF
+                withCredentials([usernamePassword(
+                    credentialsId: 'docker-auth',
+                    passwordVariable: 'DOCKERHUB_PWD',
+                    usernameVariable: 'DOCKERHUB_USER'
+                )]) {
+
+                    sh 'echo "$DOCKERHUB_PWD" | docker login -u "$DOCKERHUB_USER" --password-stdin'
+                    sh 'docker push "$IMAGE:$TAG"'
+                    sh 'docker push "$IMAGE:latest"'
+
+                    sh '''
+                    cat > deploy-info-$BUILD_NUMBER.txt <<EOF
+build: $BUILD_NUMBER
+image: $IMAGE:$TAG
+commit: ${GIT_COMMIT}
+branch: $GIT_BRANCH
+time: $(date -u +"%Y-%m-%dT%H:%M:%SZ")
+url: $BUILD_URL
+EOF
                     '''
-                    archiveArtifacts artifacts: "deploy-info-${BUILD_NUMBER}.txt", fingerprint: true, followSymlinks: false
+
+                    archiveArtifacts artifacts: "deploy-info-${BUILD_NUMBER}.txt",
+                        fingerprint: true,
+                        followSymlinks: false
                 }
             }
         }
+
         stage ('test') {
             steps {
                 sh 'sleep 2; echo "Hit http://localhost:5000 to see the app."'
             }
         }
+
         stage ('clean-up') {
             steps {
-              cleanWs()
-            }
-        }
-        post {
-            success {
-                echo "Build ${env.BUILD_NUMBER} succeeded"
-            }
-            failure {
-                echo "Build ${env.BUILD_NUMBER} failed"
-            }
-            always {
-                echo "Build ${env.BUILD_NUMBER} finished"
+                cleanWs()
             }
         }
     }
-    
+
+    post {
+        success {
+            echo "Build ${env.BUILD_NUMBER} succeeded"
+        }
+        failure {
+            echo "Build ${env.BUILD_NUMBER} failed"
+        }
+        always {
+            echo "Build ${env.BUILD_NUMBER} finished"
+        }
+    }
 }
